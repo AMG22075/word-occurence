@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Word Occurrence</title>
+    <script src="https://d3js.org/d3.v5.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3-cloud/1.2.5/d3.layout.cloud.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+        }
+        #loader {
+            display: none;
+            font-size: 18px;
+            margin-top: 10px;
+        }
+        textarea {
+            width: 80%;
+            height: 150px;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Word Occurrence</h1>
+    <textarea id="textInput" placeholder="Paste your text here..."></textarea>
+    <br>
+    <button onclick="analyzeText()">Run</button>
+    <p id="loader">Processing...</p>
+
+    <script>
+        let wordArray = [];
+
+        // Stopword categories
+        const pronouns = new Set(["all", "another", "any", "anybody", "anyone", "anything", "as", "aught", "both", "each other", "each", "either", "enough", "everybody", "everyone", "everything", "few", "he", "her", "hers", "herself", "him", "himself", "his", "it", "its", "itself", "many", "me", "mine", "most", "my", "myself", "naught", "neither", "no one", "nobody", "none", "nothing", "nought", "one another", "other", "others", "ought", "our", "ours", "several", "she", "some", "somebody", "someone", "something", "somewhat", "such", "suchlike", "that", "thee", "their", "theirs", "theirselves", "them", "themself", "themselves", "there", "these", "they", "thine", "this", "those", "thy", "thyself", "us", "we", "what", "whatever", "whatnot", "whatsoever", "when", "whence", "where", "whereby", "wherefrom", "wherein", "whereinto", "whereof", "whereon", "wheresoever", "whereto", "whereunto", "wherever", "wherewith", "wherewithal", "whether", "whichsoever", "who", "whoever", "whom", "whomever", "whomsoever", "whose", "whosever", "whoso", "whosoever", "ye", "yon", "yonder", "you", "your", "yours", "yourself", "yourselves"]);
+        const conjunctions = new Set(["and", "but", "so", "nor", "for", "yet", "either", "neither", "although", "unless", "because", "if", "though", "while", "which", "as", "why", "how"]);
+        const prepositions = new Set(["about", "above", "across", "after", "against", "along", "among", "around", "at", "back", "before", "behind", "below", "beneath", "beside", "between", "beyond", "big", "by", "concerning", "considering", "despite", "down", "during", "except", "for", "from", "full", "fully", "hard", "high", "higher", "in", "inside", "last", "less", "long", "lower", "major", "minor", "near", "of", "off", "often", "on", "onto", "or", "out", "outside", "past", "regarding", "since", "such", "to", "toward", "under", "underneath", "until", "up", "upon", "with", "within", "without"]);
+        const articles = new Set(["a", "an", "the"]);
+        const verbs = new Set(["is", "are", "was", "were", "has", "have", "had", "do", "does", "did", "be", "get", "have", "can", "want", "do", "does", "lets", "let", "see", "go", "done", "led", "comes", "come"]);
+        const adverbs = new Set(["not", "only", "so", "much", "very", "really", "ever", "yet", "some", "no", "more", "also", "here", "there", "too", "best", "just", "well"]);
+        const others = new Set(["more", "into", "like", "one", "through", "over", "most", "every", "than", "across", "will", "top", "via", "then", "per", "non", "etc", "don", "way", "xxxx", "aaa"]);
+        const techWords = new Set(["io", "com", "https", "www", "http"]);
+        const businessSuffixes = new Set(["inc", "ltd", "co"]);
+        const states = new Set(["ca", "tx"]); // California, Texas
+        const booleanWords = new Set(["TRUE", "FALSE"]);
+        const numbers = new Set(["one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen", "twenty"]);
+
+        // Combined stopwords set
+        const stopwords = new Set([
+            ...pronouns, ...conjunctions, ...prepositions, ...articles, ...verbs, 
+            ...adverbs, ...others, ...techWords, ...businessSuffixes, 
+            ...states, ...booleanWords, ...numbers
+        ]);
+
+        // Recognized multi-word cities
+        const multiWordCities = new Set(["new york", "los angeles", "san francisco", "las vegas", "san diego", "san antonio", "fort worth", "colorado springs", "kansas city", "long beach", "new orleans", "st louis", "santa fe"]);
+
+        function analyzeText() {
+            document.getElementById("loader").style.display = "block";
+            let text = document.getElementById("textInput").value;
+            setTimeout(() => {
+                generateWordOccurrences(text);
+                document.getElementById("loader").style.display = "none";
+                downloadCSV(); // Automatically download after processing
+            }, 100);
+        }
+
+        function generateWordOccurrences(text) {
+            let words = text.toLowerCase().match(/\b[a-z]+(?:-[a-z]+)*\b/g); // Matches normal and hyphenated words
+            let wordFreq = new Map();
+
+            // Handle multi-word cities
+            multiWordCities.forEach(city => {
+                let regex = new RegExp(`\\b${city.replace(" ", "\\s")}\\b`, "gi");
+                text = text.replace(regex, city.replace(" ", "-"));
+            });
+
+            words = text.toLowerCase().match(/\b[a-z]+(?:-[a-z]+)*\b/g); // Re-run regex after city replacement
+
+            words.forEach(word => {
+                if (word.length > 1 && !stopwords.has(word)) { // Exclude single letters and stopwords
+                    wordFreq.set(word, (wordFreq.get(word) || 0) + 1);
+                }
+            });
+
+            wordArray = Array.from(wordFreq, ([text, size]) => ({ text, size }));
+        }
+
+        function downloadCSV() {
+            let csvContent = "data:text/csv;charset=utf-8,Word,Frequency\n" + 
+                wordArray.map(d => `${d.text},${d.size}`).join("\n");
+            let encodedUri = encodeURI(csvContent);
+            let link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", "word_occurrences.csv");
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+    </script>
+</body>
+</html>
